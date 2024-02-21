@@ -1,0 +1,220 @@
+//  ************* NOTES FOR USE / README ******************
+
+// First, ensure your images have all been properly denoised. I recommend the Elements
+// Advanced Denoising with a power of 10/20/20/20 for B/G/Y/R.
+// Also, ensure that your images are in the order B-G-Y-R.
+// Next, put all the images you want analyzed into a separate folder.
+// Make one subfolder in this folder and label it "Processed."
+// Next, open Elements. Go to Edit / Options, Data Export in left menu, Data Export in tab
+// (not Global Settings).
+// In the Dropdown menu, choose "Automated Measurement Results."
+// Next, highlight "Field Meas."
+// Check the following boxes:  Source, BinaryID, NumberObjects, NumberObjectsRestrict...
+// Push "OK."
+// Close any open Excel documents and the Excel program; the macro will open a new document
+// for you.
+// Now you are ready to run the macro.
+
+// In Elements, go to Macro / Run on Files in Folder.
+// In the first dropdown menu, choose this 4 channels macro.
+// In the second dropdown menu, choose the folder with the images to be analyzed.
+// Under "Saving Documents," choose "Save Into Different Folder" and choose the "Processed"
+// folder that you created earlier.
+// Under "Closing Documents," choose "Close all documents after each step."
+// Now push "Run." The macro will run calculations on each image in the folder
+// that you specified, and save the analyzed images in the "Processed" folder.
+
+// The results for each individual image will be appended to an Excel file. You will need to
+// consolidate the results using whatever data analysis tool you are most
+// comfortable with.  Make sure you are using the "NumberObjectsRestrict" column
+// for the final analysis (see below paragraph for explanation).
+
+// Note that the way the macro is coded means that all multivalent particles will be counted
+// regardless of intensity; however, *** all monovalent particles will be restricted based on a
+// threshold value *** chosen in the last coding section.  The restricted counts can be found 
+// in the NumberObjectsRestrict column.  The NumberObjects column has the unrestricted counts
+// if you need to compare. If you want to change the threshold level, go to the last section
+// of the code and read the instructions there.
+
+
+// ********Creating a mask for all spots**********
+
+ViewComponents("1111");
+ExtractSelectedComponents();  //creates separate document
+ViewComponents("1111");
+ColorToGray();
+LUTs_KeepAutoScale(1);
+SpotDetection(0.50000,100.00000,0.00000,0.00000,1028.00000,0,5,0,0,0,1,0,0,0);
+
+//copy binary spots to original picture, save to layers, remove connections to channels
+CopyBinary();
+CloseCurrentDocument(2);
+PasteBinary();
+BinLayerStore("SpotDetection_ALL", "Pasted");  //save to layers
+BinLayerSelect("SpotDetection_ALL");
+BinLayerSetComponent("SpotDetection_ALL", NULL);  //remove connections to channels
+ConvertBinaryToColorComponent("",-1);   //change binary to an actual channel for troubleshooting
+CloseAllDocumentsButCurrent(2);  //isn't this redundant???
+
+
+// ******** Discovering Maxima for Individual Channels *************
+SpotDetection(0.50000,100.00000,60.00000,0.00000,0.00000,0,3,0,0,0,1,0,0,15);
+BinLayerStore("SpotDetection_405", "SpotDetection (joeTIRF - 405)");
+BinLayerSetComponent("SpotDetection_405", NULL);   //remove connection to channel
+
+SpotDetection(0.50000,100.00000,60.00000,0.00000,0.00000,1,3,0,0,0,1,0,0,15);
+BinLayerStore("SpotDetection_488", "SpotDetection (joeTIRF - 488)");
+BinLayerSetComponent("SpotDetection_488", NULL);
+
+SpotDetection(0.50000,50.00000,60.00000,0.00000,0.00000,2,3,0,0,0,1,0,0,15);
+BinLayerStore("SpotDetection_561", "SpotDetection (joeTIRF - 561)");
+BinLayerSetComponent("SpotDetection_561", NULL);
+
+SpotDetection(0.50000,20.00000,60.00000,0.00000,0.00000,3,3,0,0,0,1,0,0,15);
+BinLayerStore("SpotDetection_647", "SpotDetection (joeTIRF - 647)");
+BinLayerSetComponent("SpotDetection_647", NULL);
+
+
+// **********  Creating spot masks by combining channel maxima  **************
+
+//NOTE: the operator "2" means AND
+//the operator "8" means HAVING
+//the operator "3" means subtracting the 2nd layer from the first
+//the operator "1" means OR
+
+//**Tetravalent
+BinLayerMerge("405-488-561-647", "SpotDetection_405, SpotDetection_488, SpotDetection_561, SpotDetection_647", 2);
+BinLayerMerge("Tetra", "SpotDetection_ALL, 405-488-561-647", 8);
+BinLayerDelete("405-488-561-647");
+
+//**Trivalent
+//No 405
+BinLayerMerge("488-561-647", "SpotDetection_488, SpotDetection_561, SpotDetection_647", 2);
+BinLayerMerge("Tri-B", "SpotDetection_ALL, 488-561-647", 8);
+BinLayerMerge("Tri-B", "Tri-B, Tetra", 3);
+BinLayerDelete("488-561-647");
+
+//No 488
+BinLayerMerge("405-561-647", "SpotDetection_405, SpotDetection_561, SpotDetection_647", 2);
+BinLayerMerge("Tri-G", "SpotDetection_ALL, 405-561-647", 8);
+BinLayerMerge("Tri-G", "Tri-G, Tetra", 3);
+BinLayerDelete("405-561-647");
+
+//No 561
+BinLayerMerge("405-488-647", "SpotDetection_405, SpotDetection_488, SpotDetection_647", 2);
+BinLayerMerge("Tri-Y", "SpotDetection_ALL, 405-488-647", 8);
+BinLayerMerge("Tri-Y", "Tri-Y, Tetra", 3);
+BinLayerDelete("405-488-647");
+
+//No 647
+BinLayerMerge("405-488-561", "SpotDetection_405, SpotDetection_488, SpotDetection_561", 2);
+BinLayerMerge("Tri-R", "SpotDetection_ALL, 405-488-561", 8);
+BinLayerMerge("Tri-R", "Tri-R, Tetra", 3);
+BinLayerDelete("405-488-561");
+
+//**Bivalent
+//BG
+BinLayerMerge("405-488", "SpotDetection_405, SpotDetection_488", 2);
+BinLayerMerge("BG", "SpotDetection_ALL, 405-488", 8);
+BinLayerMerge("BG", "BG, Tetra", 3);
+BinLayerMerge("BG", "BG, Tri-Y", 3);
+BinLayerMerge("BG", "BG, Tri-R", 3);
+BinLayerDelete("405-488");
+
+//BY
+BinLayerMerge("405-561", "SpotDetection_405, SpotDetection_561", 2);
+BinLayerMerge("BY", "SpotDetection_ALL, 405-561", 8);
+BinLayerMerge("BY", "BY, Tetra", 3);
+BinLayerMerge("BY", "BY, Tri-G", 3);
+BinLayerMerge("BY", "BY, Tri-R", 3);
+BinLayerDelete("405-561");
+
+//BR
+BinLayerMerge("405-647", "SpotDetection_405, SpotDetection_647", 2);
+BinLayerMerge("BR", "SpotDetection_ALL, 405-647", 8);
+BinLayerMerge("BR", "BR, Tetra", 3);
+BinLayerMerge("BR", "BR, Tri-G", 3);
+BinLayerMerge("BR", "BR, Tri-Y", 3);
+BinLayerDelete("405-647");
+
+//GY
+BinLayerMerge("488-561", "SpotDetection_488, SpotDetection_561", 2);
+BinLayerMerge("GY", "SpotDetection_ALL, 488-561", 8);
+BinLayerMerge("GY", "GY, Tetra", 3);
+BinLayerMerge("GY", "GY, Tri-B", 3);
+BinLayerMerge("GY", "GY, Tri-R", 3);
+BinLayerDelete("488-561");
+
+//GR
+BinLayerMerge("488-647", "SpotDetection_488, SpotDetection_647", 2);
+BinLayerMerge("GR", "SpotDetection_ALL, 488-647", 8);
+BinLayerMerge("GR", "GR, Tetra", 3);
+BinLayerMerge("GR", "GR, Tri-B", 3);
+BinLayerMerge("GR", "GR, Tri-Y", 3);
+BinLayerDelete("488-647");
+
+//YR
+BinLayerMerge("561-647", "SpotDetection_561, SpotDetection_647", 2);
+BinLayerMerge("YR", "SpotDetection_ALL, 561-647", 8);
+BinLayerMerge("YR", "YR, Tetra", 3);
+BinLayerMerge("YR", "YR, Tri-B", 3);
+BinLayerMerge("YR", "YR, Tri-G", 3);
+BinLayerDelete("561-647");
+
+//*Monovalents
+//make a combo monovalent layer
+BinLayerMerge("Multis", "Tetra, Tri-B, Tri-G, Tri-Y, Tri-R, BG, BY, BR, GY, GR, YR", 1);
+BinLayerMerge("Singles", "SpotDetection_ALL, Multis", 3);
+BinLayerDelete("Multis");
+
+//B
+BinLayerMerge("B", "Singles, SpotDetection_405", 8);
+
+//G
+BinLayerMerge("G", "Singles, SpotDetection_488", 8);
+
+//Y
+BinLayerMerge("Y", "Singles, SpotDetection_561", 8);
+
+//R
+BinLayerMerge("R", "Singles, SpotDetection_647", 8);
+
+//*Remove all extraneous
+BinLayerDelete("Singles, SpotDetection_ALL");
+
+
+// **********  Export total object counts for each binary  **********
+
+// To change the thresholds below, change the second-to-last parameter 
+// inside the parenthesis of the Restrictions Command (the number before 65535).
+// For example, "Restrictions("MeanjoeTIRF___405",1,1,***10700***,65535);"
+
+//Measure Multivalent Particles, No Restrictions
+ExportSettings(0,"",1,1,1,0);
+ResetRestrictions();
+BinLayerSelect("YR,GR,GY,BR,BY,BG,Tri-R,Tri-Y,Tri-G,Tri-B,Tetra");
+MeasureField();
+
+//Measure Monovalent Particles with Restrictions
+BinLayerSelect("B");
+Restrictions("MeanjoeTIRF___405",1,1,10700,65535); //change threshold if necessary
+MeasureField();
+ResetRestrictions();
+
+BinLayerSelect("G");
+Restrictions("MeanjoeTIRF___488",1,1,4400,65535); //change threshold if necessary
+MeasureField();
+ResetRestrictions();
+
+BinLayerSelect("Y");
+Restrictions("MeanjoeTIRF___561",1,1,2000,65535); //change threshold if necessary
+MeasureField();
+ResetRestrictions();
+
+BinLayerSelect("R");
+Restrictions("MeanjoeTIRF___647",1,1,2000,65535); //change threshold if necessary
+MeasureField();
+ResetRestrictions();
+
+Export("AutoMeasResults",3);
+ResetAutoMeasData();
