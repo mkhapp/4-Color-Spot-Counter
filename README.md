@@ -5,7 +5,7 @@ Written to analyze data for Yang et al. 2024. Mosaic quadrivalent influenza vacc
 
 Based on code written by Sara Parker of Nikon Instruments.
 
-## //  ************* NOTES FOR USE / README ******************
+###   ************* NOTES FOR USE / README ******************
 
 First, ensure your images have all been properly denoised. I recommend the Elements
 Advanced Denoising with a power of 10/20/20/20 for B/G/Y/R.
